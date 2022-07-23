@@ -45,6 +45,10 @@ int main(void)
 	// Specify the data that the buffer has - in this case that means an array of positions that will not change and will be drawn to the screen
 	glBufferData(GL_ARRAY_BUFFER, 6 * sizeof(float), positions, GL_STATIC_DRAW);
 
+	// Specify how the data held by the buffer is supposed to be interpreted
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 2, nullptr);
+	glEnableVertexAttribArray(0);
+
 	/* Loop until the user closes the window */
 	while (!glfwWindowShouldClose(window))
 	{
