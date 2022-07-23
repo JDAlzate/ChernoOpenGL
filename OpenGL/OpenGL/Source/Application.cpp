@@ -1,6 +1,16 @@
-#include <iostream>
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
+
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <sstream>
+
+struct ShaderProgramSource
+{
+	std::string vertexSource;
+	std::string fragmentSource;
+};
 
 /** @returns whether the window was successfully created */
 static bool InitialSetup(GLFWwindow** outWindow)
@@ -32,28 +42,88 @@ static bool InitialSetup(GLFWwindow** outWindow)
 	return true;
 }
 
-static void InitializeVertexBuffer()
+static void InitializeBuffers()
 {
-	// Generate a buffer and store its id - this will be our vertex buffer
-	unsigned int bufferId;
-	glGenBuffers(1, &bufferId);
+	// Vertex buffer definition
+	{
+		// Define the data that I want to bind to the buffer
+		constexpr float positions[] = {
+			-0.5f, -0.5f,
+			 0.5f, -0.5f,
+			 0.5f,  0.5f,
+			-0.5f,  0.5f
+		};
 
-	// Select the buffer - every operation will now affect this specific buffer
-	glBindBuffer(GL_ARRAY_BUFFER, bufferId);
+		// Generate a buffer and store its id - this will be our vertex buffer
+		unsigned int vertexBufferId;
+		glGenBuffers(1, &vertexBufferId);
 
-	// Define the data that I want to bind to the buffer
-	constexpr float positions[6] = {
-		-0.5f, -0.5f,
-		 0.0f,  0.5f,
-		 0.5f, -0.5f
+		// Bind the buffer index to the array buffer slot
+		glBindBuffer(GL_ARRAY_BUFFER, vertexBufferId);
+
+		// Specify the data that the buffer has - in this case that means an array of positions that will not change and will be drawn to the screen
+		glBufferData(GL_ARRAY_BUFFER, 4 * 2 * sizeof(float), positions, GL_STATIC_DRAW);
+
+		// Specify how the data held by the buffer is supposed to be interpreted
+		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 2, nullptr);
+		glEnableVertexAttribArray(0); // Enable this vertex attribute (tell the GPU that these values should be taken into consideration
+	}
+
+	// Index buffer definition
+	{
+		// Define the indices I want to bind to the buffer
+		constexpr unsigned int indices[] = {
+		0, 1, 2,
+		2, 3, 0
+		};
+
+		// Generate a buffer and store its id - this will be our index buffer
+		unsigned int indexBufferId;
+		glGenBuffers(1, &indexBufferId);
+
+		// Bind the buffer index to the element array buffer slot
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBufferId);
+
+		// Specify the indices data that the buffer has
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, 3 * 2 * sizeof(unsigned int), indices, GL_STATIC_DRAW);
+
+
+	}
+}
+
+static ShaderProgramSource ParseShader(const std::string& filePath)
+{
+	std::ifstream stream(filePath);
+
+	enum class ShaderType
+	{
+		NONE = -1, VERTEX = 0, FRAGMENT = 1
 	};
+	ShaderType type = ShaderType::NONE;
 
-	// Specify the data that the buffer has - in this case that means an array of positions that will not change and will be drawn to the screen
-	glBufferData(GL_ARRAY_BUFFER, 6 * sizeof(float), positions, GL_STATIC_DRAW);
+	std::string line;
+	std::stringstream stringStreams[2];
 
-	// Specify how the data held by the buffer is supposed to be interpreted
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 2, nullptr);
-	glEnableVertexAttribArray(0); // Enable this vertex attribute (tell the GPU that these values should be taken into consideration
+	while (std::getline(stream, line))
+	{
+		if (line.find("#shader") != std::string::npos)
+		{
+			if (line.find("vertex") != std::string::npos)
+			{
+				type = ShaderType::VERTEX;
+			}
+			else if (line.find("fragment") != std::string::npos)
+			{
+				type = ShaderType::FRAGMENT;
+			}
+		}
+		else if (type != ShaderType::NONE)
+		{
+			stringStreams[(int)type] << line << '\n';
+		}
+	}
+
+	return { stringStreams[0].str(), stringStreams[1].str() };
 }
 
 static unsigned int CompileShader(const unsigned int type, const std::string& source)
@@ -112,31 +182,11 @@ int main(void)
 	}
 
 	// Could probably have a better name
-	InitializeVertexBuffer();
+	InitializeBuffers();
 
-	const std::string vertexShaderSource = R"(
-	#version 330 core
+	const ShaderProgramSource source = ParseShader("Resources/Shaders/Basic.shader");
+	const unsigned int shaderProgramId = CreateShaderProgram(source.vertexSource, source.fragmentSource);
 
-	layout(location = 0) in vec4 position;
-
-	void main()
-	{
-		gl_Position = position;
-	}
-	)";
-
-	const std::string fragmentShaderSource = R"(
-	#version 330 core
-
-	layout(location = 0) out vec4 color;
-
-	void main()
-	{
-		color = vec4(1.0, 0.0, 0.0, 1.0);
-	}
-	)";
-
-	const unsigned int shaderProgramId = CreateShaderProgram(vertexShaderSource, fragmentShaderSource);
 	glUseProgram(shaderProgramId);
 
 	/* Loop until the user closes the window */
@@ -145,9 +195,8 @@ int main(void)
 		/* Render here */
 		glClear(GL_COLOR_BUFFER_BIT);
 
-		// Draw triangles with the specified first index and index count. This won't do anything just yet because we haven't
-		// specified what kind of data the current buffer has and we haven't specified the shaders
-		glDrawArrays(GL_TRIANGLES, 0, 6);
+		// Draw the triangles specified by the vertex buffer and the index buffer
+		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
 
 		/* Swap front and back buffers */
 		glfwSwapBuffers(window);
