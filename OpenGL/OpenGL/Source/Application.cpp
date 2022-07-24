@@ -6,7 +6,7 @@
 #include <string>
 #include <sstream>
 
-#define ASSERT(x) if (!(x)) __debugbreak();
+#define ASSERT(x) if (!(x)) __debugbreak()
 #define GLCall(x) GLClearError();\
 	x;\
 	ASSERT(GLLogCall(#x, __FILE__, __LINE__))
@@ -51,6 +51,8 @@ static bool InitialSetup(GLFWwindow** outWindow)
 
 	/* Make the window's context current */
 	glfwMakeContextCurrent(*outWindow);
+
+	glfwSwapInterval(1);
 
 	if (glewInit() != GLEW_OK)
 	{
@@ -178,7 +180,7 @@ static unsigned int CreateShaderProgram(const std::string& vertexShaderSource, c
 
 	const unsigned int vertexShaderId = CompileShader(GL_VERTEX_SHADER, vertexShaderSource);
 	const unsigned int fragmentShaderId = CompileShader(GL_FRAGMENT_SHADER, fragmentShaderSource);
-
+	
 	GLCall(glAttachShader(programId, vertexShaderId));
 	GLCall(glAttachShader(programId, fragmentShaderId));
 
@@ -191,7 +193,7 @@ static unsigned int CreateShaderProgram(const std::string& vertexShaderSource, c
 	return programId;
 }
 
-int main(void)
+int main()
 {
 	GLFWwindow* window;
 	if (!InitialSetup(&window))
@@ -204,17 +206,31 @@ int main(void)
 
 	const ShaderProgramSource source = ParseShader("Resources/Shaders/Basic.shader");
 	const unsigned int shaderProgramId = CreateShaderProgram(source.vertexSource, source.fragmentSource);
-
 	GLCall(glUseProgram(shaderProgramId));
 
-	/* Loop until the user closes the window */
+	GLCall(const int location = glGetUniformLocation(shaderProgramId, "u_Color"));
+	ASSERT(location != -1);
+
+	float redValue = 0.f;
+	float redValueIncrement = 0.05f;
 	while (!glfwWindowShouldClose(window))
 	{
 		/* Render here */
 		GLCall(glClear(GL_COLOR_BUFFER_BIT));
 
-		// Draw the triangles specified by the vertex buffer and the index buffer
+		GLCall(glUniform4f(location, redValue, 0.3f, 0.8f, 1.0f));
 		GLCall(glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr));
+
+		if (redValue > 1.f)
+		{
+			redValueIncrement = -0.05f;
+		}
+		else if (redValue < 0.f)
+		{
+			redValueIncrement = 0.05f;
+		}
+
+		redValue += redValueIncrement;
 
 		/* Swap front and back buffers */
 		glfwSwapBuffers(window);
